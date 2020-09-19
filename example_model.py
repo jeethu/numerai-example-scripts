@@ -15,7 +15,7 @@ TOURNAMENT_NAME = "kazutsugi"
 TARGET_NAME = f"target_{TOURNAMENT_NAME}"
 PREDICTION_NAME = f"prediction_{TOURNAMENT_NAME}"
 
-MODEL_FILE = Path("example_model.xgb")
+MODEL_FILE = Path(f"example_model_nomi.xgb")
 
 
 # Submissions are scored by spearman correlation
@@ -52,10 +52,20 @@ def read_csv(file_path):
     return df
 
 
+def read_parquet(file_path=Path("numerai_training_validation_target_nomi.parquet"),
+                 *, data_type="train"):
+    """
+    Download the parquet file from:
+    https://forum.numer.ai/t/new-target-nomi-release/959
+    """
+    df = pd.read_parquet(file_path)
+    return df[df.data_type == data_type]
+
+
 def main():
     print("Loading data...")
     # The training data is used to train your model how to predict the targets.
-    training_data = read_csv("numerai_training_data.csv")
+    training_data = read_parquet(data_type="train")
     # The tournament data is the data that Numerai uses to evaluate your model.
     tournament_data = read_csv("numerai_tournament_data.csv")
 
@@ -73,7 +83,7 @@ def main():
         model.load_model(MODEL_FILE)
     else:
         print("Training model...")
-        model.fit(training_data[feature_names], training_data[TARGET_NAME])
+        model.fit(training_data[feature_names], training_data[f"target_nomi"])
         model.save_model(MODEL_FILE)
 
     # Generate predictions on both training and tournament data
@@ -117,7 +127,8 @@ def main():
     print(f"Feature Neutral Mean is {feature_neutral_mean}")
 
     # Load example preds to get MMC metrics
-    example_preds = pd.read_csv("example_predictions_target_kazutsugi.csv").set_index("id")["prediction_kazutsugi"]
+    example_preds = read_csv(Path(f"example_predictions_{TARGET_NAME}.csv")
+                             )[PREDICTION_NAME]
     validation_example_preds = example_preds.loc[validation_data.index]
     validation_data["ExamplePreds"] = validation_example_preds
 
@@ -133,10 +144,10 @@ def main():
 
     val_mmc_mean = np.mean(mmc_scores)
     val_mmc_std = np.std(mmc_scores)
-    val_mmc_sharpe = val_mmc_mean / val_mmc_std
+    val_mmc_sharpe = val_mmc_mean / val_mmc_std  # noqa: F841
     corr_plus_mmcs = [c + m for c, m in zip(corr_scores, mmc_scores)]
     corr_plus_mmc_sharpe = np.mean(corr_plus_mmcs) / np.std(corr_plus_mmcs)
-    corr_plus_mmc_mean = np.mean(corr_plus_mmcs)
+    corr_plus_mmc_mean = np.mean(corr_plus_mmcs)  # noqa: F841
     corr_plus_mmc_sharpe_diff = corr_plus_mmc_sharpe - validation_sharpe
 
     print(
@@ -154,7 +165,7 @@ def main():
     tournament_data[PREDICTION_NAME].to_csv(TOURNAMENT_NAME + "_submission.csv")
 
 
-""" 
+"""
 functions used for advanced metrics
 """
 
